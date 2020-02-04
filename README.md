@@ -4,7 +4,7 @@ Note: the complete analysis can be found here: https://rpubs.com/zshi4/youtube
 
 Often times, when I’m browsing on Youtube, I’m always wondering why those videos can jump to the trending list. There is a pretty handy and complex algorithm behind the scene.
 
-However, for this analysis, I will focus on using **statistical methods* to solve three problems:
+However, for this analysis, I will focus on using *statistical methods* to solve three problems:
 
 * Should YouTubers publish their videos on weekend or weekdays?
 
