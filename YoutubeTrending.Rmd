@@ -1,0 +1,210 @@
+---
+title: "Youtube Trending Videos"
+output:
+  distill::distill_article:
+    toc: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Part 1: Background
+
+Often times, when I'm browsing on Youtube, I'm always wondering why those videos can jump to the trending list. There is a pretty handy and complex algorithm behind the scene.
+
+However, for this analysis, I will focus on using statistical methods to solve three problems:
+
+* Should YouTubers publish their videos on weekend or weekdays?
+
+* Whether getting into trending required same amount of views among different groups? or are they different?
+
+* Is there a relationship between views and number of tags when a video goes on trending?
+
+### 1. Load the data and import packages
+
+```{r, message=FALSE}
+library(tidyverse)
+library(lubridate)
+youtube_orig <- read.csv("/Volumes/GoogleDrive/Shared drives/Statistics Final Presentation/youtube/youtube1.csv")
+youtube <- youtube_orig
+```
+
+### 2. Data Overview
+
+```{r}
+rmarkdown::paged_table(head(youtube))
+```
+
+This youtube dataset includes data of trending videos from 12/01/2017 to 05/31/2018.
+
+There are **16** variables in total:
+
+* Numerical Variables: : views, likes, dislikes, comment_count
+
+* Categorical Variables: channel_title, category_id, tags, comments_disabled, ratings_disabled, video_error_or_removed
+
+* Time Variables: trending_date, publish_time
+
+* Others: video_id, title, thumbnail_link, description
+
+Each video may be put on the trending list more than once.
+
+
+### 3. Data Processing
+
+Since each video can show up several times in this dataset, lots of repetitive information exists. 
+
+Moreover, all the numeric variables are cumulative, which means certain data processing methods are needed for the growth analysis concerning these variables.
+
+I will select the first trending data for each video in order to avoid time-series influence
+
+```{r}
+youtube_first_trending <- youtube %>%
+  group_by(video_id) %>%
+  mutate(first_trending = min(ydm(trending_date))) %>%
+  filter(ydm(trending_date) == first_trending) %>%
+  separate(publish_time, c("date","time"), sep="T") %>%
+  filter(date>="2017-12-01") %>%
+  dplyr::select(video_id, trending_date, date, time,title, channel_title, 
+                category_id, views,likes, dislikes, comment_count,tags) %>%
+  distinct()
+```
+
+## Part 2: Two-sample T-Test
+
+### 1. Video Views on Weekends vs. Weekdays
+
+Now, we will start our statistical analysis on the youtube trending video datasets.
+
+As a YouTuber, you will probably wonder if you should publish your videos during the weekends and weekdays to get more views. I have the intuition that people will tend to watch YouTube videos on weekends more than on weekdays.
+
+Here comes our hypothesis:
+
+* H0: Trending videos have the same number of views on weekends and weekdays.
+
+* H1: Trending videos have different numbers of views ib weekebds and weekdays.
+
+```{r}
+youtube_ttest <- youtube_first_trending %>%
+  mutate(week_day = weekdays(ymd(date))) %>%
+  mutate(weekend=ifelse((week_day=="Saturday" | week_day=="Sunday"),1,0))
+
+t.test(youtube_ttest$views ~ youtube_ttest$weekend,
+       alternative = "two.sided", var.equal = TRUE)
+```
+
+### 2. Findings
+
+Based on the t-test output, we can see we have a p-value of 0.566, which is far larger than 0.05, the pre-decided significance level. 
+
+Therefore, the H0 cannot be rejected, and trending videos tend to have the same number of views during weekday and weekend.
+
+This gives us the information that there is no difference in terms of views whether you decide to publish videos on weekdays and weekends.
+
+## Part 3: ANOVA Test
+
+### 1. Video Views and Category ID
+
+```{r}
+length(unique(youtube$category_id))
+```
+
+There are 16 video categories in our dataset. I'm curious about if there is a significant difference in views among different video categoris. Whether getting into Trending required same amount of views among different groups? or are they different?
+
+* H0: Trending videos have the same number of views across different categories.
+
+* H1: Trending videos have different numberd of views across different categories.
+
+I did an ANOVA test here to compare the means of views when videos go on trending first time for each category.
+
+```{r}
+categoryTest <- aov(data = youtube_first_trending, views~as.factor(category_id))
+summary(categoryTest)
+TukeyHSD(categoryTest)
+```
+
+### 2. Findings
+
+The result of the ANOVA test shows a p-value that is greatly smaller than 0.05, the pre-decided significance level. 
+
+Therefore, the H0 should be rejected, and trending videos tend to have different numbers of views across different categories.
+
+Moreover, the TukeyHSD test indicates the exact differences in video views between pairwise groups. `Category_10 (music)` tends to have the most number of views, while `category_25 (news & politics)` tends to have the least.
+
+## Part 4: Regression Model
+
+### 1. Relationship between video views and number of tags
+
+YouTube videos usually have a lot of tags. The tags are separate by the "|". Let's see two examples below:
+
+```{r}
+head(youtube$tags,2)
+```
+
+Is there a relationship between views and number of tags when a video goes on trending?
+
+In theory, the more tags a video has, the more likely it will show up in searches, and more people will watch it.
+
+Our hypothesis: *number of tags has a positive relationship with views for videos first on trending*
+
+Let's run a simple linear regression to test our findings:
+
+\[Views\ = \beta_0\ + \beta_1\ * Num\ of\ Tags\]
+\[H_0: \beta_1\ = 0\] 
+\[H_1: \beta_1\ != 0\]
+
+```{r}
+youtube_tags <- youtube_first_trending %>% 
+  mutate(tags = as.character(tags)) %>% 
+  mutate(numTags = ifelse((tags == "[none]"), 
+                          0, str_count(tags, "\\|")+1))
+
+model_tags <- lm(data = youtube_tags, views~numTags)
+summary(model_tags)
+par(mfrow = c(2, 2))
+plot(model_tags)
+```
+
+### 2. Findings
+
+The coefficient has a 0.011 p-value that is smaller than 0.05, the pre-decided significance level. Thus, the H0 should be rejected, and the number of tags for a video can positively influence its number of views.
+
+However, the following diagnostic plots show that the residuals are not normally distributed, and the r-square is only 0.001261. The F-statistic is 6.469, which also means this model is not a good fit to the dataset.
+
+## Part 5: Revised Regression Model
+
+### 1. Use music and news&politics categories as dummy variables
+
+Can we improve our model? According to the ANOVA test in part 3, we know that category 10 (music) and category 25 (news & politics)'s views usually different from others. So I want to use *Music* and *News&Politics* as dummy variables and add to our linear model.
+
+\[Views\ = \beta_0\ + \beta_1\ * Num\ of\ Tags\ + \beta_2\ * Dummy_{music}\ +\beta_3\ *\ Dummy_{news}\]
+\[H_0: \beta_1\ = 0,\ \beta_2\ = 0,\ \beta_3\ = 0\]
+\[H_1: \beta_1\ != 0,\ \beta_2\ != 0,\ \beta_3\ != 0\]
+
+```{r}
+youtube_dummy <- youtube_tags %>% 
+  mutate(music = ifelse(category_id == 10, TRUE, FALSE)) %>% 
+  mutate(news = ifelse(category_id == 25, TRUE, FALSE))
+
+model <- lm(data = youtube_dummy, views~numTags+music+news)
+summary(model)
+par(mfrow = c(2, 2))
+plot(model)
+```
+
+### 2. Findings
+
+All three coefficients have p-values that are smaller than 0.05, the pre-decided significance level. Thus, the H0 should be rejected, and the number of tags and the music dummy has a positive impact on video views, while the news dummy has a negative one.
+
+However, the following plots show that residuals are not normally distributed, and dummy variables cause a blank space in fitted values. The r-square is increased to 0.2879, and the F-statistic becomes 50.59, which means this revised model is a better fit than the original one.
+
+## Part 6: Limitations
+
+1. This dataset doesn't include data of those videos falling out of the trending list, which can be utilized to determine the views threshold of the trending list.
+
+2. This analysis assumes the trending list is daily updated, while it actually may be updated every 15 minutes. This proxy leads to inaccuracy.
+
+3. The revised model still doesn't have a high r-square and F-statistic, which means further analysis is needed to explore the relationship.
+
