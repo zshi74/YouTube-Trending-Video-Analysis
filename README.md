@@ -13,5 +13,3 @@ However, for this analysis, I will focus on using *statistical methods* to solve
 * Whether getting into trending requires same amount of views among different groups? or are they different?
 
 * Is there a relationship between views and number of tags when a video goes on trending?
-
-This is the first time I started using statistics knowledge in R to analyze problems. I hope you enjoy reading and have fun with this analysis.
