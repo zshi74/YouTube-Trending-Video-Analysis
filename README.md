@@ -8,6 +8,6 @@ However, for this analysis, I will focus on using *statistical methods* to solve
 
 * Should YouTubers publish their videos on weekend or weekdays?
 
-* Whether getting into trending required same amount of views among different groups? or are they different?
+* Whether getting into trending requires same amount of views among different groups? or are they different?
 
 * Is there a relationship between views and number of tags when a video goes on trending?
