@@ -14,4 +14,5 @@ However, for this analysis, I will focus on using *statistical methods* to solve
 
 * Is there a relationship between views and number of tags when a video goes on trending?
 
+
 ![youtube](https://github.com/zshi74/Data/blob/master/youtube.jpeg)
